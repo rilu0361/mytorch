@@ -1,0 +1,22 @@
+name: tmptorch
+channels:
+- defaults
+dependencies:
+- pip
+- jupyter
+- numpy
+- pandas
+- openpyxl
+- matplotlib
+- scikit-learn
+- scipy
+- python==3.7.3
+- pillow
+- tqdm
+- tensorflow
+- regex
+- gensim
+- pip:
+  - mecab-python3==0.996.2
+  - mojimoji
+  - torchtext
