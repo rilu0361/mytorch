@@ -1,0 +1,8 @@
+LICENSE
+/tmp_data*
+/vector
+*checkpoint
+*.vector_cache*
+*tbX
+*__pycache__
+*memo.md
