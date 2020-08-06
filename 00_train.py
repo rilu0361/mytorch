@@ -36,82 +36,37 @@ opts   = parser.parse_args() # opts.xxx でxxxのパラメータの呼び出し
 '''
 print("LOG : 開始現在 ", time.strftime("%Y/%m/%d %H:%M", time.strptime(time.ctime())))
 start_time = time.time()
-
+print("- - - - - - - - - -")
 # tensorboard準備
-if os.path.exists('./tbX'): # TODO:パラメータ設定on/off
-    shutil.rmtree('./tbX')
-    print("INFO : ./tbXを削除")
-writer = SummaryWriter(log_dir="./tbX") # tbxのインスタンス生成.フォルダ自動生成
-print("INFO : ./tbXを作成")
+if os.path.exists(opts.tensorboard): # TODO:パラメータ設定on/off
+    shutil.rmtree(opts.tensorboard)
+    print("FILE : ",opts.tensorboard,"を削除しました.")
+writer = SummaryWriter(log_dir=opts.tensorboard) # tbxのインスタンス生成.フォルダ自動生成
+print("FILE : ",opts.tensorboard,"を作成しました.")
 
 # モデルの保存用フォルダの作成
-if not os.path.exists(CHECKPOINT):
-    os.mkdir(CHECKPOINT)
-    print("INFO : ", CHECKPOINT, "を作成しました.")
+if not os.path.exists(opts.checkpoint):
+    os.mkdir(opts.checkpoint)
+    print("FILE : ", opts.checkpoint, "を作成しました.")
 else :
-    shutil.rmtree(CHECKPOINT)
-    os.mkdir(CHECKPOINT)
-    print("INFO : ", CHECKPOINT, "を削除し再作成しました.")
-print("LOG : checkpoint path -> ", CHECKPOINT)
+    shutil.rmtree(opts.checkpoint)
+    os.mkdir(opts.checkpoint)
+    print("FILE : ", opts.checkpoint, "を削除し再作成しました.")
+print("INFO : checkpoint path -> ", opts.checkpoint)
 
 # GPU確認
 if not(torch.cuda.device_count()):
     DEVICE = torch.device(*('cpu',0))
 else:
-    torch.cuda.manual_seed(SEED)
+    torch.cuda.manual_seed(opts.seed)
     DEVICE = torch.device(*('cuda',0))
-print("INFO : 使用するデバイス", DEVICE)
+print("INFO : 使用するデバイス -> ", DEVICE)
 # DEVICE = "cpu"
 
 # cudnnの自動チューナー:場合によって速くなったり遅くなったり(入力サイズが常に一定だといいらしいが)
 cudnn.benchmark = True 
-
-# 一般
-SEED    = opts.seed
-WORKERS = opts.workers
-# データ
-DATA_PATH = opts.data_path
-IMG_PATH  = opts.img_path
-# 保存　読み出し
-CHECKPOINT = opts.checkpoint
-# モデル構成
-SEMANTIC_REG = opts.semantic_reg
-NUM_CLASSES  = opts.numClasses
-# モデル
-RESUME      = opts.resume      # 途中から再開するか
-BATCH_SIZE  = opts.batch_size
-EPOCH       = opts.epochs
-START_EPOCH = opts.start_epoch
-# 損失関数
-COS_WEIGHT = opts.cos_weight
-CLS_WEIGHT = opts.cls_weight
-# optimizer
-LARNING_RATE = opts.lr
-# MOMENTUM     = opts.momentum
-WEIGHT_DECAY = opts.weight_decay
-# 切り替え?
-PATIENCE   = opts.patience
-FREEVISION = opts.freeVision
-FREERECIPE = opts.freeRecipe
-
-'''
-データパラメータ設定
-'''
-# 画像のロードに関するパラメータ
-RESIZE = opts.resize
-MEAN   = (0.485, 0.456, 0.406) # (0,)
-STD    = (0.229, 0.224, 0.225) # (1,)
-image_transform = ImageTransform(RESIZE, MEAN, STD)
-# テキストのロードに関するパラメータ
-MAX_SEQ_LEN = opts.maxSeqlen
-MAX_INGR    = opts.maxIngrs
-
-
-'''
-初期確認 
-'''
-
-
+print("LOG : 初期確認終了 経過時間:{:.2f}".format(time.time()-start_time))
+print("- - - - - - - - - -")
 '''
 モデル定義
 '''

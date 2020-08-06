@@ -7,21 +7,30 @@ my_args.py
 import argparse
 
 def get_parser():
-
     parser = argparse.ArgumentParser(description='パラメータ指定')
     # general
-    parser.add_argument('--seed', default=1234, type=int)
-    parser.add_argument('--no-cuda', action='store_true')
-    parser.add_argument('--workers', default=0, type=int, help="CPUコア数") # 
-
-    # data
-    parser.add_argument('--data_path', default='./tmp_data', help="データのPATH")
-    parser.add_argument('--checkpoint', default='checkpoint/',type=str, help="checkpointのPATH")
-
+    parser.add_argument('--workers', default=0, type=int, help="使用するCPUコア数")
+    # path指定
+    parser.add_argument('--data_path', default='tmp_data', help="データのPATH指定")
+    parser.add_argument('--checkpoint', default='checkpoint',type=str, help="checkpointのPATH指定")
+    parser.add_argument('--tensorboard', default='tensorboard',type=str, help="tensorboardのPATH指定")
     # model
-    parser.add_argument('--batch_size', default=300, type=int, help="batch size") # d:
-    parser.add_argument('--numClasses', default=6, type=int) # d: 
-    # parser.add_argument('--patience',   default=1, type=int)
+    parser.add_argument('--batch_size', default=300, type=int, help="batch size") 
+    # parser.add_argument('--numClasses', default=6, type=int, help="カテゴリ分類の数") 
+    # training
+    parser.add_argument('--epochs', default=1000, type=int, help="epoch数") # d: 720
+    parser.add_argument('--start_epoch', default=0, type=int, help="開始epoch")
+    parser.add_argument('--continue', default='./checkpoint/epoch005_val211.000.pth.tar', type=str, help="checkpointの続きから実行")
+    # 損失関数
+    # parser.add_argument('--cos_weight', default=0.98, type=float) # d: 0.98
+    # parser.add_argument('--cls_weight', default=0.02, type=float) # d: 0.01
+    # 最適化関数
+    parser.add_argument('--lr', default=0.001, type=float, help="学習率") # d: 0.0001
+    parser.add_argument('--momentum', default=0.9, type=float, help="モメンタム")
+    parser.add_argument('--weight_decay', default=0, type=float, help="weight decay")
+    # other
+    parser.add_argument('--seed', default=1234, type=int, help="randomのseed")
+    # parser.add_argument('--no-cuda', action='store_true')
 
     # image
     # parser.add_argument('--resize', default=224, type=int)
@@ -42,18 +51,6 @@ def get_parser():
 
     # parser.add_argument('--nRNNs', default=1, type=int)
     # parser.add_argument('--maxImgs', default=5, type=int)
-
-    # training 
-    parser.add_argument('--epochs', default=1000, type=int) # d: 720
-    parser.add_argument('--start_epoch', default=0, type=int)
-    parser.add_argument('--resume', default='./checkpoint/epoch005_val211.000.pth.tar', type=str)
-    # 損失関数
-    parser.add_argument('--cos_weight', default=0.98, type=float) # d: 0.98
-    parser.add_argument('--cls_weight', default=0.02, type=float) # d: 0.01
-    # 最適化関数
-    parser.add_argument('--lr', default=0.001, type=float) # d: 0.0001
-    parser.add_argument('--momentum', default=0.9, type=float)
-    parser.add_argument('--weight_decay', default=0, type=float)
 
     # parser.add_argument('--ingrW2V', default='data/vocab.bin',type=str)
     # parser.add_argument('--valfreq', default=10,type=int)  
