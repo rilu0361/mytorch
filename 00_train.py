@@ -22,6 +22,9 @@ import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter  # tensorboard
 # 自作プログラムの読込
 from my_args       import get_parser
+from my_utils      import my_util
+from my_models     import my_fc
+from my_datasets   import my_image_dataset
 # from my_transform  import ImageTransform 
 # from my_dataset    import RecipeDataset
 # from my_model      import Im2RecipeNet
@@ -34,24 +37,20 @@ opts   = parser.parse_args() # opts.xxx でxxxのパラメータの呼び出し
 '''
 初期条件確認
 '''
-print("LOG : 開始現在 ", time.strftime("%Y/%m/%d %H:%M", time.strptime(time.ctime())))
+print("LOG : 開始現在 ", time.strftime("%Y/%m/%d %H:%M:%S", time.strptime(time.ctime())))
 start_time = time.time()
 print("- - - - - - - - - -")
+
 # tensorboard準備
-if os.path.exists(opts.tensorboard): # TODO:パラメータ設定on/off
-    shutil.rmtree(opts.tensorboard)
-    print("FILE : ",opts.tensorboard,"を削除しました.")
+if not opts.no_check: my_util.check_file(opts.tensorboard)
 writer = SummaryWriter(log_dir=opts.tensorboard) # tbxのインスタンス生成.フォルダ自動生成
 print("FILE : ",opts.tensorboard,"を作成しました.")
+print("INFO : tensorboard path -> ", opts.tensorboard)
 
 # モデルの保存用フォルダの作成
-if not os.path.exists(opts.checkpoint):
-    os.mkdir(opts.checkpoint)
-    print("FILE : ", opts.checkpoint, "を作成しました.")
-else :
-    shutil.rmtree(opts.checkpoint)
-    os.mkdir(opts.checkpoint)
-    print("FILE : ", opts.checkpoint, "を削除し再作成しました.")
+if not opts.no_check: my_util.check_file(opts.checkpoint)
+os.makedirs(opts.checkpoint, exist_ok=True)
+print("FILE : ", opts.checkpoint, "を作成しました.")
 print("INFO : checkpoint path -> ", opts.checkpoint)
 
 # GPU確認
@@ -60,56 +59,54 @@ if not(torch.cuda.device_count()):
 else:
     torch.cuda.manual_seed(opts.seed)
     DEVICE = torch.device(*('cuda',0))
+if opts.cpu:
+    DEVICE = "cpu"
 print("INFO : 使用するデバイス -> ", DEVICE)
-# DEVICE = "cpu"
 
 # cudnnの自動チューナー:場合によって速くなったり遅くなったり(入力サイズが常に一定だといいらしいが)
 cudnn.benchmark = True 
+
 print("LOG : 初期確認終了 経過時間:{:.2f}".format(time.time()-start_time))
 print("- - - - - - - - - -")
+
 '''
 モデル定義
 '''
-print("LOG : モデル定義...")
+print("LOG : モデル定義開始...")
 # モデル定義
-print(DEVICE)
-model = Im2RecipeNet().to(DEVICE, non_blocking=True)
+model = my_fc.FCNet().to(DEVICE, non_blocking=True)
 print(model)
 # Loss関数定義
 cosine_crit = nn.CosineEmbeddingLoss(0.1).to(DEVICE)
-# カテゴリ分類ありの場合
-if SEMANTIC_REG: 
-    weights_class = torch.Tensor(NUM_CLASSES).fill_(1)
-    weights_class[0] = 0 # the background class is set to 0
-    class_crit = nn.CrossEntropyLoss(weight=weights_class).to(DEVICE)
-    criterion = [cosine_crit, class_crit]
-else:
-    criterion = cosine_crit
-
+# Loss関数定義
+criterion = nn.CrossEntropyLoss()
 # optimizer定義
-# # creating different parameter groups
-vision_params = list(map(id, model.visionMLP.parameters()))
-base_params   = filter(lambda p: id(p) not in vision_params, model.parameters())
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001, eps=1e-08, weight_decay=0)
+
+# # optimizer定義
+# # # creating different parameter groups
+# vision_params = list(map(id, model.visionMLP.parameters()))
+# base_params   = filter(lambda p: id(p) not in vision_params, model.parameters())
    
-# optimizer = torch.optim.Adam(model.parameters(), lr=LARNING_RATE, eps=1e-08, weight_decay=WEIGHT_DECAY)
-optimizer = torch.optim.Adam([
-                {'params': base_params},
-                {'params': model.visionMLP.parameters(), 'lr': LARNING_RATE*FREEVISION }
-            ], lr=LARNING_RATE*FREERECIPE)
+# # optimizer = torch.optim.Adam(model.parameters(), lr=LARNING_RATE, eps=1e-08, weight_decay=WEIGHT_DECAY)
+# optimizer = torch.optim.Adam([
+#                 {'params': base_params},
+#                 {'params': model.visionMLP.parameters(), 'lr': LARNING_RATE*FREEVISION }
+#             ], lr=LARNING_RATE*FREERECIPE)
 
 # 保存したものがあれば呼び出す
 print("LOG : checkpointの呼び出し...")
-if RESUME:
-    if os.path.isfile(RESUME):
-        print("=> loading checkpoint '{}'".format(RESUME))
-        checkpoint = torch.load(RESUME)
+if opts.resume:
+    if os.path.isfile(opts.resume):
+        print("=> loading checkpoint '{}'".format(opts.resume))
+        checkpoint = torch.load(opts.resume)
         START_EPOCH = checkpoint['epoch']
         best_val = checkpoint['best_val']
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        print("=> loaded checkpoint '{}' (epoch {})".format(RESUME, checkpoint['epoch']))
+        print("=> loaded checkpoint '{}' (epoch {})".format(opts.resume, checkpoint['epoch']))
     else:
-        print("=> no checkpoint found at '{}'".format(RESUME))
+        print("=> no checkpoint found at '{}'".format(opts.resume))
         best_val = float('inf') 
 else:
     best_val = float('inf') 
@@ -118,52 +115,40 @@ else:
 # モデルは検証データで一番良かったときのみ保存する
 valtrack = 0
 
+print("LOG : モデル定義終了 経過時間:{:.2f}".format(time.time()-start_time))
+print("- - - - - - - - - -")
+
 '''
 データローダー定義
 '''
+transform = None
 print("LOG : データローダー定義...")
 # 学習データ
-print("INFO : train_data = " , os.path.join(DATA_PATH, "train/menu.csv"))
-trainset    = RecipeDataset(os.path.join(DATA_PATH, "train_m"),
-                            os.path.join(IMG_PATH, "train_image"), 
-                            transform=image_transform, phase="train",
-                            sem_reg=opts.semantic_reg)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=BATCH_SIZE, 
-                            shuffle=True, num_workers=WORKERS, pin_memory=True)
+print("INFO : data path -> " , opts.data_path)
+trainset    = my_image_dataset.ImageDataset(os.path.join(opts.data_path, opts.train_file),
+                            transform=image_transform, phase="train")
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=opts.batch_size, 
+                            shuffle=True, num_workers=opts.workers, pin_memory=True)
 print('LOG : Training loader prepared.')
 
 # # 学習データ
-# print("INFO : train_data = " , os.path.join(DATA_PATH, "valid/menu.csv"))
-# trainset    = RecipeDataset(os.path.join(DATA_PATH, "valid"),
+# print("INFO : train_data = " , os.path.join(opts.data_path, "valid/menu.csv"))
+# trainset    = RecipeDataset(os.path.join(opts.data_path, "valid"),
 #                             os.path.join(IMG_PATH, "valid_image"), 
 #                             transform=image_transform, phase="train",
 #                             sem_reg=opts.semantic_reg)
-# trainloader = torch.utils.data.DataLoader(trainset, batch_size=BATCH_SIZE, 
-#                             shuffle=True, num_workers=WORKERS, pin_memory=True)
+# trainloader = torch.utils.data.DataLoader(trainset, batch_size=opts.batch_size, 
+#                             shuffle=True, num_workers=opts.workers, pin_memory=True)
 # print('LOG : Training loader prepared.')
 
 # 検証用データ
-validset    = RecipeDataset(os.path.join(DATA_PATH, "valid_m"),
-                            os.path.join(IMG_PATH, "valid_image"),
-                            transform=image_transform, phase="valid",
-                            sem_reg=opts.semantic_reg)
-validloader = torch.utils.data.DataLoader(validset, batch_size=BATCH_SIZE,
-                            shuffle=False, num_workers=WORKERS, pin_memory=True)
+validset    = my_image_dataset.ImageDataset(os.path.join(opts.data_path, opts.valid_file),
+                            transform=image_transform, phase="train")
+validloader = torch.utils.data.DataLoader(validset, batch_size=opts.batch_size,
+                            shuffle=False, num_workers=opts.workers, pin_memory=True)
 print('LOG : Validation loader prepared.')
 
-'''
-tensorboard設定
-'''
-# tensorboardへの記録用関数
-def write_tbx(epoch, cos_loss, img_loss, rec_loss, val_medr, val_recall):
-    print(epoch, cos_loss, img_loss, rec_loss, val_medr)
-    writer.add_scalar('train/cos_loss', cos_loss, epoch) 
-    writer.add_scalar('train/img_loss', img_loss, epoch)
-    writer.add_scalar('train/rec_loss', rec_loss, epoch)
-    writer.add_scalar('valid/medr',     val_medr, epoch)
-    writer.add_scalar('valid/recall@1',  val_recall[1],  epoch)
-    writer.add_scalar('valid/recall@5',  val_recall[5],  epoch)
-    writer.add_scalar('valid/recall@10', val_recall[10], epoch)
+
 
 '''
 学習ループ定義
@@ -177,7 +162,7 @@ def one_train(loader, model, criterion, optimizer, epoch):
         img_losses = AverageMeter()
         rec_losses = AverageMeter()
     data_num  = len(loader.dataset)              # テストデータの総数
-    pbar = tqdm(total=int(data_num/BATCH_SIZE))  # プログレスバー設定
+    pbar = tqdm(total=int(data_num/opts.batch_size))  # プログレスバー設定
     # 学習開始
     model.train()          # モデルを学習モードに設定
     for batch, (inputs, targets) in enumerate(loader): 
@@ -237,7 +222,7 @@ def one_valid(loader, model, criterion):
     correct = 0            # 正解率計算用の変数を宣言
     total_loss = 0.0       # 1epochの損失合計
     data_num  = len(loader.dataset)              # テストデータの総数
-    pbar = tqdm(total=int(data_num/BATCH_SIZE))  # プログレスバー設定
+    pbar = tqdm(total=int(data_num/opts.batch_size))  # プログレスバー設定
     with torch.no_grad():  # 推論時には勾配は不要(メモリ節約)
         for i, (inputs, targets) in enumerate(loader):
             # データをdeviceに載せる (image, inst, len(inst), ingr, len(ingr)), [target, img_id, rec_id]

@@ -11,16 +11,20 @@ def get_parser():
     # general
     parser.add_argument('--workers', default=0, type=int, help="使用するCPUコア数")
     # path指定
+    parser.add_argument('--no_check',  action='store_true', help="ファイル削除を尋ねるか")
     parser.add_argument('--data_path', default='tmp_data', help="データのPATH指定")
+    parser.add_argument('--train_file', default='train', help="trainのファイル名")
+    parser.add_argument('--valid_file', default='valid', help="validのファイル名")
+    parser.add_argument('--test_file',  default='test' , help="testのファイル名" )
     parser.add_argument('--checkpoint', default='checkpoint',type=str, help="checkpointのPATH指定")
-    parser.add_argument('--tensorboard', default='tensorboard',type=str, help="tensorboardのPATH指定")
+    parser.add_argument('--tensorboard', default='save_tb',type=str, help="tensorboardのPATH指定")
     # model
     parser.add_argument('--batch_size', default=300, type=int, help="batch size") 
     # parser.add_argument('--numClasses', default=6, type=int, help="カテゴリ分類の数") 
     # training
     parser.add_argument('--epochs', default=1000, type=int, help="epoch数") # d: 720
     parser.add_argument('--start_epoch', default=0, type=int, help="開始epoch")
-    parser.add_argument('--continue', default='./checkpoint/epoch005_val211.000.pth.tar', type=str, help="checkpointの続きから実行")
+    parser.add_argument('--resume', default='./checkpoint/epoch005_val211.000.pth.tar', type=str, help="checkpointの続きから実行")
     # 損失関数
     # parser.add_argument('--cos_weight', default=0.98, type=float) # d: 0.98
     # parser.add_argument('--cls_weight', default=0.02, type=float) # d: 0.01
@@ -30,7 +34,7 @@ def get_parser():
     parser.add_argument('--weight_decay', default=0, type=float, help="weight decay")
     # other
     parser.add_argument('--seed', default=1234, type=int, help="randomのseed")
-    # parser.add_argument('--no-cuda', action='store_true')
+    parser.add_argument('--cpu', action='store_true', help="cpuで動作させたい場合")
 
     # image
     # parser.add_argument('--resize', default=224, type=int)
