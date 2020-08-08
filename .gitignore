@@ -1,7 +1,7 @@
 LICENSE
 /vector
-*checkpoint
-*.vector_cache*
-# *save_tb
+/save_tb
+/checkpoint
 *__pycache__
+*.vector_cache*
 *memo.md
